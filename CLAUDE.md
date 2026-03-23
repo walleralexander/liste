@@ -4,20 +4,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-"Liste" is a simple web-based checklist management tool. Users create named lists with rows (tasks/items) and can dynamically add columns to track status. The project concept is described in `idee.md` (German).
+"Liste" is a web-based checklist tool for tracking recurring tasks across multiple devices. It presents a matrix view: rows = devices, columns = tasks, cells = status. The original concept is in `idee.md` (German).
 
-### Core Concepts
+## Development
 
-- **Lists**: Named collections of rows. Created via a "New" action with a name and line-separated row values.
-- **Table structure**: First column is an auto-incrementing counter, second column holds the row values provided at creation. Additional columns can be added dynamically.
-- **Status values**: Cells accept "offen" (open), "erledigt" (done), "in Arbeit" (in progress).
-- **Comments column**: Each row has a comment field tracking when last completed (and eventually by whom).
-- **Description field**: A general markdown-capable input field for task descriptions.
+```bash
+# Start dev server
+php -S localhost:8080
 
-### Technical Requirements (from idee.md)
+# Open in browser
+# http://localhost:8080/index.html
+```
 
-- Accessible (barrierefreies) design
-- Simple HTML, minimal or no framework
-- If a framework is used, prefer Laravel
-- No authentication required initially
-- Language of the UI should be German
+Requires PHP 8.0+. No build step, no package manager, no framework.
+
+## Architecture
+
+Single-page app with a PHP JSON API and file-based storage.
+
+```
+Browser (index.html + app.js + style.css)
+    ↕  JSON via fetch()
+PHP Backend (api.php)
+    ↕  read/write with flock()
+File Storage (data/{list-id}.json)
+```
+
+- `api.php` — Single entry point for all API routes. Uses query params (`?action=...`) for routing, `flock()` for concurrency, `saveAndUnlock()` takes array by reference to avoid resource leaks.
+- `app.js` — All client logic: hash router, API client, DOM rendering. Uses `textContent` for user data, `DOMPurify.sanitize(marked.parse(...))` for markdown. No innerHTML with unsanitized content.
+- `index.html` — Static shell, loads marked.js and DOMPurify from CDN.
+- `style.css` — Accessible styles, responsive table, status badges.
+- `data/*.json` — One file per list, not committed (in `.gitignore`).
+
+## Key Conventions
+
+- **German UI** — all labels, messages, and error strings are in German
+- **Status values**: `offen`, `in Arbeit`, `erledigt` — hardcoded in both PHP and JS
+- **IDs**: `bin2hex(random_bytes(4))` — 8-char hex strings
+- **Status map key format**: `"rowId:colId"` — missing entries default to `offen`
+- **`updated_at`**: only set when status changes to `erledigt`, reset to `null` otherwise
+- **Lock discipline**: validate input before acquiring lock; use `unlockAndError()` for errors after lock
+
+## Spec & Plan
+
+- Design spec: `docs/superpowers/specs/2026-03-23-liste-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-03-23-liste-implementation.md`
