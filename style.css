@@ -1,0 +1,261 @@
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+    color: #1a1a1a;
+    background: #fafafa;
+}
+
+header h1 {
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+}
+
+header h1 a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* --- Home view --- */
+.list-overview {
+    list-style: none;
+    padding: 0;
+}
+
+.list-overview li {
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.list-overview li a {
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.list-overview li a:hover {
+    text-decoration: underline;
+}
+
+.list-overview .meta {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+/* --- List view --- */
+.list-header {
+    margin-bottom: 1rem;
+}
+
+.list-header h2 {
+    margin: 0 0 0.5rem;
+}
+
+.list-description {
+    color: #444;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: #f0f0f0;
+    border-radius: 4px;
+}
+
+/* --- Table --- */
+.matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.matrix-table th,
+.matrix-table td {
+    border: 1px solid #ddd;
+    padding: 0.5rem 0.75rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.matrix-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.matrix-table th[scope="row"] {
+    text-align: left;
+    font-weight: 600;
+}
+
+.matrix-table .row-number {
+    color: #999;
+    width: 2.5rem;
+}
+
+.matrix-table .col-zuletzt {
+    color: #999;
+    font-size: 0.8rem;
+    min-width: 6rem;
+}
+
+/* --- Status badges --- */
+.status-cell {
+    cursor: pointer;
+    user-select: none;
+    border-radius: 3px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    display: inline-block;
+    min-width: 5rem;
+    border: none;
+    font-family: inherit;
+}
+
+.status-cell:hover {
+    opacity: 0.8;
+}
+
+.status-cell:focus {
+    outline: 2px solid #4a90d9;
+    outline-offset: 2px;
+}
+
+.status-offen {
+    background: #e8e8e8;
+    color: #666;
+}
+
+.status-in-arbeit {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-erledigt {
+    background: #d4edda;
+    color: #155724;
+}
+
+/* --- Task column header --- */
+th.task-header {
+    cursor: pointer;
+}
+
+th.task-header:hover {
+    background: #eaeaea;
+}
+
+/* --- Forms --- */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font: inherit;
+}
+
+.form-group textarea {
+    min-height: 4rem;
+    resize: vertical;
+}
+
+/* --- Buttons --- */
+.btn {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #f0f0f0;
+}
+
+.btn:focus {
+    outline: 2px solid #4a90d9;
+    outline-offset: 2px;
+}
+
+.btn-primary {
+    background: #4a90d9;
+    color: #fff;
+    border-color: #4a90d9;
+}
+
+.btn-primary:hover {
+    background: #357abd;
+}
+
+.btn-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background: #dc3545;
+    color: #fff;
+}
+
+.toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+/* --- Task description modal --- */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.modal {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal h3 {
+    margin: 0 0 1rem;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+    .matrix-table {
+        font-size: 0.8rem;
+    }
+    .matrix-table th,
+    .matrix-table td {
+        padding: 0.3rem 0.4rem;
+    }
+}
