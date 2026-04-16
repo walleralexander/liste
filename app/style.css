@@ -5,7 +5,7 @@
 body {
     font-family: system-ui, -apple-system, sans-serif;
     line-height: 1.5;
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     padding: 1rem;
     color: #1a1a1a;
@@ -151,6 +151,69 @@ th.task-header {
 
 th.task-header:hover {
     background: #eaeaea;
+}
+
+/* --- Sortable headers --- */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sortable-header:hover {
+    background: #eaeaea;
+}
+
+/* --- Priority select --- */
+.priority-select {
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+    font: inherit;
+    font-size: 0.8rem;
+    background: #fff;
+}
+
+.priority-select:focus {
+    outline: 2px solid #4a90d9;
+    outline-offset: 1px;
+}
+
+/* --- Inline edit button --- */
+.btn-inline-edit {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 0.2rem;
+    font-size: 0.7rem;
+    opacity: 0.4;
+    vertical-align: middle;
+    font-family: inherit;
+}
+
+.btn-inline-edit:hover {
+    opacity: 1;
+}
+
+.btn-inline-edit:focus {
+    outline: 2px solid #4a90d9;
+    outline-offset: 1px;
+    opacity: 1;
+}
+
+/* --- Link cells --- */
+.link-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.link-cell-link {
+    text-decoration: none;
+    font-size: 1rem;
+}
+
+.link-cell-link:hover {
+    opacity: 0.7;
 }
 
 /* --- Forms --- */

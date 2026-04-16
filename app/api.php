@@ -71,6 +71,9 @@ function loadAndLockList(string $id): array {
         errorResponse('Liste nicht gefunden', 404);
     }
     $fp = fopen($path, 'r+');
+    if ($fp === false) {
+        errorResponse('Datei konnte nicht geöffnet werden – Berechtigungen prüfen', 500);
+    }
     flock($fp, LOCK_EX);
     $data = json_decode(stream_get_contents($fp), true);
     $data['_fp'] = $fp;
@@ -144,7 +147,7 @@ function handleLists(string $method): void {
         foreach ($rowNames as $rowName) {
             $rowName = trim($rowName);
             if ($rowName !== '') {
-                $rows[] = ['id' => generateId(), 'name' => $rowName];
+                $rows[] = ['id' => generateId(), 'name' => $rowName, 'priority' => 0, 'ticket_url' => '', 'vdok_url' => ''];
             }
         }
 
@@ -217,7 +220,7 @@ function handleRow(string $method): void {
             errorResponse('Name darf nicht leer sein', 400);
         }
         $list = loadAndLockList($listId);
-        $row = ['id' => generateId(), 'name' => $name];
+        $row = ['id' => generateId(), 'name' => $name, 'priority' => 0, 'ticket_url' => '', 'vdok_url' => ''];
         $list['rows'][] = $row;
         saveAndUnlock($list);
         jsonResponse($list, 201);
@@ -230,15 +233,28 @@ function handleRow(string $method): void {
 
     if ($method === 'PUT') {
         $input = getInput();
-        $name = trim($input['name'] ?? '');
-        if ($name === '') {
-            errorResponse('Name darf nicht leer sein', 400);
+        if (isset($input['name'])) {
+            $name = trim($input['name']);
+            if ($name === '') {
+                errorResponse('Name darf nicht leer sein', 400);
+            }
         }
         $list = loadAndLockList($listId);
         $found = false;
         foreach ($list['rows'] as &$row) {
             if ($row['id'] === $rowId) {
-                $row['name'] = $name;
+                if (isset($input['name'])) {
+                    $row['name'] = trim($input['name']);
+                }
+                if (isset($input['priority'])) {
+                    $row['priority'] = (int)$input['priority'];
+                }
+                if (array_key_exists('ticket_url', $input)) {
+                    $row['ticket_url'] = trim($input['ticket_url']);
+                }
+                if (array_key_exists('vdok_url', $input)) {
+                    $row['vdok_url'] = trim($input['vdok_url']);
+                }
                 $found = true;
                 break;
             }

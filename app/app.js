@@ -35,9 +35,17 @@ async function api(action, params, method, body) {
     }
 
     var res = await fetch(url, opts);
-    var data = await res.json();
+    var text = await res.text();
+    var data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        console.error('API response is not valid JSON:', text);
+        throw new Error('Ungültige Server-Antwort (siehe Konsole)');
+    }
 
     if (!res.ok) {
+        console.error('API error:', res.status, data);
         throw new Error(data.error || 'Unbekannter Fehler');
     }
     return data;
@@ -129,7 +137,7 @@ async function renderHomeView() {
 
             var meta = document.createElement('span');
             meta.className = 'meta';
-            meta.textContent = list.rowCount + ' Geräte · ' + list.columnCount + ' Aufgaben';
+            meta.textContent = list.rowCount + ' Geräte/Personen · ' + list.columnCount + ' Aufgaben';
             span.appendChild(meta);
 
             var delBtn = document.createElement('button');
@@ -171,7 +179,7 @@ function showNewListForm() {
         + '<textarea id="list-desc"></textarea>'
         + '</div>'
         + '<div class="form-group">'
-        + '<label for="list-rows">Geräte (eins pro Zeile)</label>'
+        + '<label for="list-rows">Geräte/Personen (eins pro Zeile)</label>'
         + '<textarea id="list-rows" required placeholder="srv-web01&#10;srv-db01&#10;srv-mail01"></textarea>'
         + '</div>';
 
@@ -276,7 +284,7 @@ async function renderListView(id) {
 
     var addRowBtn = document.createElement('button');
     addRowBtn.className = 'btn';
-    addRowBtn.textContent = '+ Gerät';
+    addRowBtn.textContent = '+ Gerät/Person';
     addRowBtn.addEventListener('click', addRow);
     toolbar.appendChild(addRowBtn);
 
@@ -292,10 +300,77 @@ async function renderListView(id) {
     $app.appendChild(buildTable(list));
 }
 
+// --- Sort State ---
+var currentSort = { key: null, asc: true };
+
+function sortRows(rows, columns, statusMap) {
+    if (!currentSort.key) return rows.slice();
+
+    var sorted = rows.slice();
+    var key = currentSort.key;
+    var asc = currentSort.asc;
+
+    sorted.sort(function(a, b) {
+        var va, vb;
+        if (key === 'name') {
+            va = a.name.toLowerCase();
+            vb = b.name.toLowerCase();
+        } else if (key === 'priority') {
+            va = a.priority || 0;
+            vb = b.priority || 0;
+        } else if (key === 'zuletzt') {
+            va = getLatestDate(a, columns, statusMap);
+            vb = getLatestDate(b, columns, statusMap);
+            va = va ? va.getTime() : 0;
+            vb = vb ? vb.getTime() : 0;
+        } else {
+            // Sort by status column
+            var entryA = statusMap[a.id + ':' + key];
+            var entryB = statusMap[b.id + ':' + key];
+            var order = { 'erledigt': 0, 'in Arbeit': 1, 'offen': 2 };
+            va = order[entryA ? entryA.value : 'offen'];
+            vb = order[entryB ? entryB.value : 'offen'];
+        }
+        if (va < vb) return asc ? -1 : 1;
+        if (va > vb) return asc ? 1 : -1;
+        return 0;
+    });
+    return sorted;
+}
+
+function getLatestDate(row, columns, statusMap) {
+    var latest = null;
+    for (var i = 0; i < columns.length; i++) {
+        var entry = statusMap[row.id + ':' + columns[i].id];
+        if (entry && entry.updated_at) {
+            var d = new Date(entry.updated_at);
+            if (!latest || d > latest) latest = d;
+        }
+    }
+    return latest;
+}
+
+function toggleSort(key) {
+    if (currentSort.key === key) {
+        currentSort.asc = !currentSort.asc;
+    } else {
+        currentSort.key = key;
+        currentSort.asc = true;
+    }
+    renderListView(currentList.id);
+}
+
+function sortIndicator(key) {
+    if (currentSort.key !== key) return '';
+    return currentSort.asc ? ' \u25b2' : ' \u25bc';
+}
+
 function buildTable(list) {
     var rows = list.rows;
     var columns = list.columns;
     var statusMap = list.status || {};
+
+    var sortedRows = sortRows(rows, columns, statusMap);
 
     var table = document.createElement('table');
     table.className = 'matrix-table';
@@ -313,22 +388,61 @@ function buildTable(list) {
 
     var thDevice = document.createElement('th');
     thDevice.setAttribute('scope', 'col');
-    thDevice.textContent = 'Gerät';
+    thDevice.className = 'sortable-header';
+    thDevice.textContent = 'Gerät/Person' + sortIndicator('name');
+    thDevice.addEventListener('click', function() { toggleSort('name'); });
     headerRow.appendChild(thDevice);
+
+    var thPriority = document.createElement('th');
+    thPriority.setAttribute('scope', 'col');
+    thPriority.className = 'sortable-header';
+    thPriority.textContent = 'Priorität' + sortIndicator('priority');
+    thPriority.addEventListener('click', function() { toggleSort('priority'); });
+    headerRow.appendChild(thPriority);
+
+    var thTicket = document.createElement('th');
+    thTicket.setAttribute('scope', 'col');
+    thTicket.textContent = 'Ticket';
+    headerRow.appendChild(thTicket);
+
+    var thVdok = document.createElement('th');
+    thVdok.setAttribute('scope', 'col');
+    thVdok.textContent = 'VDOK';
+    headerRow.appendChild(thVdok);
 
     for (var ci = 0; ci < columns.length; ci++) {
         var col = columns[ci];
         var th = document.createElement('th');
         th.setAttribute('scope', 'col');
-        th.className = 'task-header';
-        th.title = 'Klicken für Beschreibung';
+        th.className = 'task-header sortable-header';
+        th.title = 'Klicken zum Sortieren';
         th.addEventListener('click', (function(colId) {
-            return function() { showTaskDescription(colId); };
+            return function() { toggleSort(colId); };
         })(col.id));
 
         var colNameSpan = document.createElement('span');
-        colNameSpan.textContent = col.name;
+        colNameSpan.textContent = col.name + sortIndicator(col.id);
         th.appendChild(colNameSpan);
+
+        var descColBtn = document.createElement('button');
+        descColBtn.className = 'btn-inline-edit';
+        descColBtn.textContent = '\u2139';
+        descColBtn.title = 'Beschreibung anzeigen';
+        descColBtn.setAttribute('aria-label', 'Beschreibung für ' + col.name);
+        descColBtn.addEventListener('click', (function(cId) {
+            return function(e) { e.stopPropagation(); showTaskDescription(cId); };
+        })(col.id));
+        th.appendChild(descColBtn);
+
+        var editColBtn = document.createElement('button');
+        editColBtn.className = 'btn-inline-edit';
+        editColBtn.textContent = '\u270e';
+        editColBtn.title = 'Aufgabe umbenennen';
+        editColBtn.setAttribute('aria-label', 'Aufgabe ' + col.name + ' umbenennen');
+        editColBtn.addEventListener('click', (function(cId, spanEl) {
+            return function(e) { e.stopPropagation(); editColumnName(cId, spanEl); };
+        })(col.id, colNameSpan));
+        th.appendChild(editColBtn);
 
         var delColBtn = document.createElement('button');
         delColBtn.className = 'btn btn-danger';
@@ -345,8 +459,9 @@ function buildTable(list) {
 
     var thZuletzt = document.createElement('th');
     thZuletzt.setAttribute('scope', 'col');
-    thZuletzt.className = 'col-zuletzt';
-    thZuletzt.textContent = 'Zuletzt';
+    thZuletzt.className = 'col-zuletzt sortable-header';
+    thZuletzt.textContent = 'Zuletzt' + sortIndicator('zuletzt');
+    thZuletzt.addEventListener('click', function() { toggleSort('zuletzt'); });
     headerRow.appendChild(thZuletzt);
 
     thead.appendChild(headerRow);
@@ -355,8 +470,8 @@ function buildTable(list) {
     // Body
     var tbody = document.createElement('tbody');
 
-    for (var ri = 0; ri < rows.length; ri++) {
-        var row = rows[ri];
+    for (var ri = 0; ri < sortedRows.length; ri++) {
+        var row = sortedRows[ri];
         var tr = document.createElement('tr');
 
         var tdNum = document.createElement('td');
@@ -371,17 +486,61 @@ function buildTable(list) {
         rowNameSpan.textContent = row.name;
         thRow.appendChild(rowNameSpan);
 
+        var editRowBtn = document.createElement('button');
+        editRowBtn.className = 'btn-inline-edit';
+        editRowBtn.textContent = '\u270e';
+        editRowBtn.title = 'Gerät/Person umbenennen';
+        editRowBtn.setAttribute('aria-label', 'Gerät/Person ' + row.name + ' umbenennen');
+        editRowBtn.addEventListener('click', (function(rId, spanEl) {
+            return function(e) { e.stopPropagation(); editRowName(rId, spanEl); };
+        })(row.id, rowNameSpan));
+        thRow.appendChild(editRowBtn);
+
         var delRowBtn = document.createElement('button');
         delRowBtn.className = 'btn btn-danger';
         delRowBtn.style.cssText = 'margin-left:0.5rem;padding:0 0.3rem;font-size:0.7rem;line-height:1;';
         delRowBtn.textContent = '\u00d7';
-        delRowBtn.title = 'Gerät entfernen';
+        delRowBtn.title = 'Gerät/Person entfernen';
         delRowBtn.addEventListener('click', (function(rId, rName) {
             return function(e) { e.stopPropagation(); deleteRow(rId, rName); };
         })(row.id, row.name));
         thRow.appendChild(delRowBtn);
 
         tr.appendChild(thRow);
+
+        // Priority cell
+        var tdPrio = document.createElement('td');
+        var prioSelect = document.createElement('select');
+        prioSelect.className = 'priority-select';
+        prioSelect.setAttribute('aria-label', 'Priorität für ' + row.name);
+        var prioOptions = [
+            [0, '\u2014'],
+            [1, '1 - Hoch'],
+            [2, '2 - Mittel'],
+            [3, '3 - Niedrig']
+        ];
+        for (var pi = 0; pi < prioOptions.length; pi++) {
+            var opt = document.createElement('option');
+            opt.value = prioOptions[pi][0];
+            opt.textContent = prioOptions[pi][1];
+            if ((row.priority || 0) === prioOptions[pi][0]) opt.selected = true;
+            prioSelect.appendChild(opt);
+        }
+        prioSelect.addEventListener('change', (function(rId) {
+            return function(e) { updatePriority(rId, parseInt(e.target.value)); };
+        })(row.id));
+        tdPrio.appendChild(prioSelect);
+        tr.appendChild(tdPrio);
+
+        // Ticket URL cell
+        var tdTicket = document.createElement('td');
+        tdTicket.appendChild(buildLinkCell(row, 'ticket_url', 'Ticket-Link'));
+        tr.appendChild(tdTicket);
+
+        // VDOK URL cell
+        var tdVdok = document.createElement('td');
+        tdVdok.appendChild(buildLinkCell(row, 'vdok_url', 'VDOK-Link'));
+        tr.appendChild(tdVdok);
 
         var latestDate = null;
 
@@ -424,6 +583,77 @@ function buildTable(list) {
     return table;
 }
 
+// --- Link Cell Builder ---
+
+function buildLinkCell(row, field, label) {
+    var url = row[field] || '';
+    var container = document.createElement('span');
+    container.className = 'link-cell';
+
+    if (url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'link-cell-link';
+        a.textContent = '\u{1F517}';
+        a.title = url;
+        container.appendChild(a);
+
+        var editBtn = document.createElement('button');
+        editBtn.className = 'btn-inline-edit';
+        editBtn.textContent = '\u270e';
+        editBtn.title = label + ' bearbeiten';
+        editBtn.addEventListener('click', (function(rId, f, lbl) {
+            return function() { editRowUrl(rId, f, lbl); };
+        })(row.id, field, label));
+        container.appendChild(editBtn);
+
+        var clearBtn = document.createElement('button');
+        clearBtn.className = 'btn-inline-edit';
+        clearBtn.textContent = '\u00d7';
+        clearBtn.title = label + ' entfernen';
+        clearBtn.addEventListener('click', (function(rId, f) {
+            return function() { updateRowUrl(rId, f, ''); };
+        })(row.id, field));
+        container.appendChild(clearBtn);
+    } else {
+        var addBtn = document.createElement('button');
+        addBtn.className = 'btn-inline-edit';
+        addBtn.style.opacity = '0.6';
+        addBtn.textContent = '+';
+        addBtn.title = label + ' hinzufügen';
+        addBtn.addEventListener('click', (function(rId, f, lbl) {
+            return function() { editRowUrl(rId, f, lbl); };
+        })(row.id, field, label));
+        container.appendChild(addBtn);
+    }
+
+    return container;
+}
+
+function editRowUrl(rowId, field, label) {
+    var row = currentList.rows.find(function(r) { return r.id === rowId; });
+    if (!row) return;
+    var currentUrl = row[field] || '';
+    var newUrl = prompt(label + ':', currentUrl);
+    if (newUrl === null) return;
+    updateRowUrl(rowId, field, newUrl.trim());
+}
+
+async function updateRowUrl(rowId, field, url) {
+    if (!currentList) return;
+    var body = {};
+    body[field] = url;
+    try {
+        var updated = await api('row', { list: currentList.id, row: rowId }, 'PUT', body);
+        currentList = updated;
+        await renderListView(currentList.id);
+    } catch (err) {
+        alert('Fehler: ' + err.message);
+    }
+}
+
 // --- Status Cycling ---
 
 var STATUS_CYCLE = ['offen', 'in Arbeit', 'erledigt'];
@@ -450,6 +680,19 @@ async function cycleStatus(rowId, colId) {
     }
 }
 
+// --- Update Priority ---
+
+async function updatePriority(rowId, priority) {
+    if (!currentList) return;
+    try {
+        var updated = await api('row', { list: currentList.id, row: rowId }, 'PUT', { priority: priority });
+        currentList = updated;
+        await renderListView(currentList.id);
+    } catch (err) {
+        alert('Fehler: ' + err.message);
+    }
+}
+
 // --- Add Row / Column (inline inputs) ---
 
 function addRow() {
@@ -458,14 +701,14 @@ function addRow() {
     if (!table) return;
     var tr = document.createElement('tr');
     tr.id = 'inline-add-row';
-    var colSpan = (currentList.columns.length || 0) + 3;
+    var colSpan = (currentList.columns.length || 0) + 6;
     var td = document.createElement('td');
     td.colSpan = colSpan;
     td.style.textAlign = 'left';
 
     var input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'Name des Geräts';
+    input.placeholder = 'Name des Geräts/der Person';
     input.style.cssText = 'padding:0.3rem;border:1px solid #ccc;border-radius:3px;font:inherit;width:200px;';
 
     var okBtn = document.createElement('button');
@@ -559,7 +802,7 @@ function addColumn() {
 // --- Delete Row / Column ---
 
 async function deleteRow(rowId, name) {
-    if (!confirm('Gerät "' + name + '" wirklich entfernen?')) return;
+    if (!confirm('Gerät/Person "' + name + '" wirklich entfernen?')) return;
     try {
         var updated = await api('row', { list: currentList.id, row: rowId }, 'DELETE');
         currentList = updated;
@@ -750,5 +993,81 @@ function editList() {
 
     overlay.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') overlay.remove();
+    });
+}
+
+// --- Inline Rename (double-click) ---
+
+function editColumnName(colId, spanEl) {
+    var col = currentList.columns.find(function(c) { return c.id === colId; });
+    if (!col) return;
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = col.name;
+    input.style.cssText = 'font:inherit;font-size:0.875rem;font-weight:600;width:8rem;padding:0.1rem 0.3rem;border:1px solid #4a90d9;border-radius:3px;';
+
+    var parent = spanEl.parentNode;
+    parent.replaceChild(input, spanEl);
+    input.focus();
+    input.select();
+
+    async function save() {
+        var name = input.value.trim();
+        if (!name || name === col.name) {
+            parent.replaceChild(spanEl, input);
+            return;
+        }
+        try {
+            var updated = await api('column', { list: currentList.id, col: colId }, 'PUT', { name: name });
+            currentList = updated;
+            await renderListView(currentList.id);
+        } catch (err) {
+            alert('Fehler: ' + err.message);
+            parent.replaceChild(spanEl, input);
+        }
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = col.name; input.blur(); }
+    });
+}
+
+function editRowName(rowId, spanEl) {
+    var row = currentList.rows.find(function(r) { return r.id === rowId; });
+    if (!row) return;
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = row.name;
+    input.style.cssText = 'font:inherit;font-weight:600;width:8rem;padding:0.1rem 0.3rem;border:1px solid #4a90d9;border-radius:3px;';
+
+    var parent = spanEl.parentNode;
+    parent.replaceChild(input, spanEl);
+    input.focus();
+    input.select();
+
+    async function save() {
+        var name = input.value.trim();
+        if (!name || name === row.name) {
+            parent.replaceChild(spanEl, input);
+            return;
+        }
+        try {
+            var updated = await api('row', { list: currentList.id, row: rowId }, 'PUT', { name: name });
+            currentList = updated;
+            await renderListView(currentList.id);
+        } catch (err) {
+            alert('Fehler: ' + err.message);
+            parent.replaceChild(spanEl, input);
+        }
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = row.name; input.blur(); }
     });
 }
